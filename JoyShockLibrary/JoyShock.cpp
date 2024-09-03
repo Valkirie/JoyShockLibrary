@@ -1438,9 +1438,49 @@ public:
     {
         unsigned char buf[79];
         memset(buf, 0, 79);
-		// TODO :P
 
-        hid_write(handle, &buf[1], 74);
+		// Header & Report Information
+		buf[0] = 0xa2; // Output report header, needs to be included in crc32
+		buf[1] = 0x31; // DualSense output report is 0x31
+		buf[2] = 0x02; // DATA (0x02)
+
+		if (leftTrigger.bDirty)
+			buf[3] = buf[3] | 0x08;
+		if (rightTrigger.bDirty)
+			buf[3] = buf[3] | 0x04;
+		
+		buf[13] = rightTrigger.motorMode;
+		buf[14] = rightTrigger.startResistance;
+		buf[15] = rightTrigger.effectForce;
+		buf[16] = rightTrigger.rangeForce;
+		buf[17] = rightTrigger.nearReleaseStrength;
+		buf[18] = rightTrigger.nearMiddleStrength;
+		buf[19] = rightTrigger.pressedStrength;
+		buf[20] = rightTrigger.P6;
+		buf[21] = rightTrigger.P7;
+		buf[22] = rightTrigger.actuationFrequency;
+		buf[23] = rightTrigger.P9;
+		
+		buf[24] = leftTrigger.motorMode;
+		buf[25] = leftTrigger.startResistance;
+		buf[26] = leftTrigger.effectForce;
+		buf[27] = leftTrigger.rangeForce;
+		buf[28] = leftTrigger.nearReleaseStrength;
+		buf[29] = leftTrigger.nearMiddleStrength;
+		buf[30] = leftTrigger.pressedStrength;
+		buf[31] = leftTrigger.P6;
+		buf[32] = leftTrigger.P7;
+		buf[33] = leftTrigger.actuationFrequency;
+		buf[34] = leftTrigger.P9;
+
+        uint32_t crc = crc_32(buf, 75);
+        memcpy(&buf[75], &crc, 4);
+        //buf[75] = (crc >> 24) & 0xFF;
+        //buf[76] = (crc >> 16) & 0xFF;
+        //buf[77] = (crc >> 8) & 0xFF;
+        //buf[78] = crc & 0xFF;
+
+        hid_write(handle, &buf[1], 78);
     }
 		
 	void set_ds5_trigger_effects_usb(const ds5_trigger_effect& leftTrigger, const ds5_trigger_effect& rightTrigger)
@@ -1450,11 +1490,7 @@ public:
 
         buf[0] = 0xa2; // Output report header, needs to be included in crc32
         buf[1] = 0x02; // DualSense output report is 0x02 for USB
-        //buf[1] = 0x02; // DATA (0x02)
-        if (leftTrigger.bDirty)
-            buf[2] = buf[2] | 0x08;
-        if (rightTrigger.bDirty)
-            buf[2] = buf[2] | 0x04;
+
         // Comment stolen from DS4Windows:
         // 0x01 Set the main motors (also requires flag 0x02)
         // 0x02 Set the main motors (also requires flag 0x01)
@@ -1464,6 +1500,10 @@ public:
         // 0x20 Enable internal speaker (even while headset is connected)
         // 0x40 Enable modification of microphone volume
         // 0x80 Enable internal mic (even while headset is connected)
+        if (leftTrigger.bDirty)
+            buf[2] = buf[2] | 0x08;
+        if (rightTrigger.bDirty)
+            buf[2] = buf[2] | 0x04;
 
         buf[12] = rightTrigger.motorMode;
         buf[13] = rightTrigger.startResistance;
