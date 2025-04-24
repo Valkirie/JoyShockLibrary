@@ -1481,25 +1481,22 @@ public:
 	}
 
 	// SPI (@CTCaer):
-	bool get_spi_data(uint32_t offset, const uint8_t read_len, uint8_t* test_buf) {
+	bool get_spi_data(uint32_t offset, const uint8_t read_len, uint8_t *test_buf) {
 		int res;
 		uint8_t buf[0x100];
-		const int maxAttempts = 10;
-
-		for (int attempt = 0; attempt < maxAttempts; ++attempt) {
+		while (1) {
 			memset(buf, 0, sizeof(buf));
-			auto hdr = reinterpret_cast<brcm_hdr*>(buf);
-			auto pkt = reinterpret_cast<brcm_cmd_01*>(hdr + 1);
-
-			// Prepare the header
+			auto hdr = (brcm_hdr *)buf;
+			auto pkt = (brcm_cmd_01 *)(hdr + 1);
 			hdr->cmd = 1;
 			hdr->rumble[0] = timing_byte;
+
 			buf[1] = timing_byte;
 
-			// Update the timing byte modulo 16.
-			timing_byte = (timing_byte + 1) & 0xF;
-
-			// Prepare the command packet
+			timing_byte++;
+			if (timing_byte > 0xF) {
+				timing_byte = 0x0;
+			}
 			pkt->subcmd = 0x10;
 			pkt->offset = offset;
 			pkt->size = read_len;
@@ -1508,32 +1505,25 @@ public:
 				buf[i] = buf[i + 3];
 			}
 
-			// Write the command to the device.
 			res = hid_write(handle, buf, sizeof(*hdr) + sizeof(*pkt));
-			if (res < 0) {
-				// Write error.
-				return false;
-			}
 
-			// Read the response with a timeout.
 			res = hid_read_timeout(handle, buf, sizeof(buf), 1000);
-			if (res == 0) {
-				// Timeout reached.
+			if (res == 0)
+			{
 				return false;
 			}
 
-			// Check if we got a valid response.
-			if ((*(uint16_t*)&buf[0xD] == 0x1090) &&
-				(*(uint32_t*)&buf[0xF] == offset)) {
-				// If we received enough data, copy the payload to the output buffer.
-				if (res >= 0x14 + read_len) {
-					memcpy(test_buf, &buf[0x14], read_len);
-				}
-				return true;
+			if ((*(uint16_t*)&buf[0xD] == 0x1090) && (*(uint32_t*)&buf[0xF] == offset)) {
+				break;
 			}
 		}
-		// If we reach here, we exceeded maxAttempts without a valid response.
-		return false;
+		if (res >= 0x14 + read_len) {
+			for (int i = 0; i < read_len; i++) {
+				test_buf[i] = buf[0x14 + i];
+			}
+		}
+
+		return true;
 	}
 
 	int write_spi_data(uint32_t offset, const uint8_t write_len, uint8_t* test_buf) {
